@@ -8,10 +8,14 @@ namespace FileByteColor
 {
 	public class DisplayManager : UserControl
 	{
-		public DisplayManager ()
+		public DisplayManager (ToolBoxForm toolbox)
 		{
+			_toolbox = toolbox;
 			Init();
 		}
+
+		private ToolBoxForm _toolbox;
+		private int _multiplier = 1;
 		
 		private void Init()
 		{
@@ -19,7 +23,14 @@ namespace FileByteColor
 			this.Resize += HandleResize;
 			this.Paint += HandlePaint;
 			this.Scroll += HandleScroll;
+			_toolbox.MultiplierChanged += HandleMultiplierChanged;
 			this.Show();
+		}
+
+		private void HandleMultiplierChanged(object sender, EventArgs e)
+		{
+			_multiplier = _toolbox.Multiplier;
+			this.Refresh();
 		}
 
 		private void HandleScroll (object sender, ScrollEventArgs e)
@@ -37,7 +48,7 @@ namespace FileByteColor
 			int len = pal.Entries.Length;
 			for(int i=0; i<len; i++)
 			{
-				int c = i%256;
+				int c = i % 256;
 				pal.Entries[i] = Color.FromArgb(c,c,c);
 			}
 		}
@@ -48,12 +59,14 @@ namespace FileByteColor
 			Graphics g = e.Graphics;
 			int w = this.Width - (this.VerticalScroll.Visible
 				? SystemInformation.VerticalScrollBarWidth
-				: 0 );
-			int h = this.Height;
-			long lines = FileHandler.Length / w;
-			this.AutoScrollMinSize = new System.Drawing.Size(0,(int)lines);
-			int top = Math.Abs(this.VerticalScroll.Value);
-			
+				: 0 ) / _multiplier;
+			int h = this.Height / _multiplier;
+			long lines = FileHandler.Length / w + 1; //+1 to make it a ciel instead of a floor
+			this.AutoScrollMinSize = new System.Drawing.Size(0,(int)lines*_multiplier);
+			int top = Math.Abs(this.VerticalScroll.Value)*w;
+
+			Console.WriteLine("w="+w+" h="+h+" lines="+lines+" top="+top);
+
 			byte[] data = FileHandler.GetChunk(top,w*h);
 			if (data == null) { return; }
 			Bitmap b = new Bitmap(w,h,PixelFormat.Format8bppIndexed);
@@ -66,7 +79,8 @@ namespace FileByteColor
 			WriteBmpData(bits,data,w,h);
 			b.UnlockBits(bits);
 
-			g.DrawImageUnscaled(b,0,0);
+			g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
+			g.DrawImage(b,0,0,w*_multiplier,h*_multiplier);
 		}
 		
 		private static void WriteBmpData(BitmapData bmpDataDest,byte[] destBuffer,int imageWidth,int imageHeight)

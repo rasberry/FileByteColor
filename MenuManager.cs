@@ -7,12 +7,14 @@ namespace FileByteColor
 {
 	public class MenuManager
 	{
-		public MenuManager(Form parent)
+		public MenuManager(MainForm parent, ToolBoxForm toolbox)
 		{
 			_p = parent;
+			_tx = toolbox;
 			Init();
 		}
-		private Form _p;
+		private MainForm _p;
+		private ToolBoxForm _tx;
 		
 		private void Init()
 		{
@@ -81,7 +83,7 @@ namespace FileByteColor
 		}
 		private void ToolsToggleToolBoxAction (object sender, EventArgs e)
 		{
-			
+			_tx.Show();
 		}
 		private void HelpAboutAction (object sender, EventArgs e)
 		{
