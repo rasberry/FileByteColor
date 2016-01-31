@@ -47,8 +47,5 @@
     <Compile Include="DisplayManager.cs">
       <SubType>UserControl</SubType>
     </Compile>
-    <Compile Include="ToolBoxForm.cs">
-      <SubType>Form</SubType>
-    </Compile>
   </ItemGroup>
 </Project>

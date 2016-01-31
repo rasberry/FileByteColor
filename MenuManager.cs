@@ -2,92 +2,160 @@ using System;
 using System.Windows.Forms;
 using System.IO;
 using System.ComponentModel;
+using System.Diagnostics;
 
 namespace FileByteColor
 {
 	public class MenuManager
 	{
-		public MenuManager(MainForm parent, ToolBoxForm toolbox)
+		public MenuManager()
 		{
-			_p = parent;
-			_tx = toolbox;
 			Init();
 		}
-		private MainForm _p;
-		private ToolBoxForm _tx;
-		
+		private NumericUpDown SpinnerUi { get; set; }
+		private ToolStripDropDownButton MultiplierUi { get; set; }
+
+		public MenuStrip Menu { get; private set; }
+
+		//Events
+		public class MultiplierChangedEventArgs : EventArgs {
+			public int Multiplier { get; set; }
+		}
+		public delegate void MultiplierChangedEventHandler(object sender, MultiplierChangedEventArgs e);
+		public event MultiplierChangedEventHandler MultiplierChanged;
+		public int Multiplier { get; private set; }
+
+		public class SpinnerChangedEventArgs : EventArgs {
+			public int SpinnerValue { get; set; }
+		}
+		public delegate void SpinnerChangedEventHandler(object sender, SpinnerChangedEventArgs e);
+		public event SpinnerChangedEventHandler SpinnerChanged;
+		public int SpinnerValue { get { return (int)SpinnerUi.Value; } set { SpinnerUi.Value = value; } }
+
+		public object Deubg { get; private set; }
+
+		public enum MenuActionType { FileOpen, FileClose, FileExit, HelpAbout }
+		public class MenuActionEventArgs : EventArgs {
+			public MenuActionType Action { get; set; }
+		}
+		public delegate void MenuActionEventHandler(object sender, MenuActionEventArgs e);
+		public event MenuActionEventHandler MenuAction;
+
 		private void Init()
 		{
 			//File menu
-			MenuItem FileOpen = new MenuItem("&Open");
+			var FileOpen = new ToolStripMenuItem("&Open");
 			FileOpen.Click += FileOpenAction;
-			MenuItem FileClose = new MenuItem("&Close");
+			var FileClose = new ToolStripMenuItem("&Close");
 			FileClose.Click += FileCloseAction;
-			MenuItem FileExit = new MenuItem("E&xit");
+			var FileExit = new ToolStripMenuItem("E&xit");
 			FileExit.Click += FileExitAction;
-			MenuItem file = new MenuItem("&File",new MenuItem[] {
-				FileOpen,FileClose,FileExit
-			});
-			
-			//Tools Menu
-			MenuItem ToolsToggleToolBox = new MenuItem("&Toggle ToolBox");
-			ToolsToggleToolBox.Click += ToolsToggleToolBoxAction;
-			MenuItem tools = new MenuItem("&Tools",new MenuItem[] {
-				ToolsToggleToolBox
-			});
+			var file = new ToolStripMenuItem("&File");
+			file.DropDownItems.AddRange(new ToolStripMenuItem[] {FileOpen,FileClose,FileExit });
 			
 			//Help Menu
-			MenuItem HelpAbout = new MenuItem("&About");
+			var HelpAbout = new ToolStripMenuItem("&About");
 			HelpAbout.Click += HelpAboutAction;
-			MenuItem help = new MenuItem("&Help",new MenuItem[] {
-				HelpAbout
+			var help = new ToolStripMenuItem("&Help");
+			help.DropDownItems.Add(HelpAbout);
+
+			//Seperator
+			var seperator = new ToolStripSeparator();
+
+			//Spinner
+			SpinnerUi = new NumericUpDown();
+			SpinnerUi.Minimum = 1;
+			SpinnerUi.Maximum = decimal.MaxValue;
+			SpinnerUi.MaximumSize = new System.Drawing.Size(60,int.MaxValue);
+			SpinnerUi.InterceptArrowKeys = false; //we're doing our own key capture
+			SpinnerUi.KeyDown += OnSpinnerKeyDown; //keydown repeats if key is being held
+			SpinnerUi.ValueChanged += OnSpinnerChange;
+
+			var spinnerHost = new ToolStripControlHost(SpinnerUi,"Width");
+
+			//Multiplier
+			MultiplierUi = new ToolStripDropDownButton();
+			MultiplierUi.DropDownItemClicked += OnMultiplierChanged;
+			ToolStripMenuItem first;
+			MultiplierUi.DropDownItems.AddRange( new ToolStripItem[] {
+				first = new ToolStripMenuItem("&1x")
+				,new ToolStripMenuItem("&2x")
+				,new ToolStripMenuItem("&4x")
+				,new ToolStripMenuItem("&8x")
 			});
-			
-			Menu = new MainMenu(new MenuItem[] {
-				file,tools,help
-			});
+			first.Select();
+			OnMultiplierChanged(null,new ToolStripItemClickedEventArgs(first));
+
+			//Add everything to the menu
+			Menu = new MenuStrip();
+			Menu.Items.AddRange(new ToolStripItem[] { file,help,seperator,MultiplierUi,spinnerHost });
+			Menu.Dock = DockStyle.Top;
 		}
-		
-		public MainMenu Menu { get; private set; }
+
+		private void OnSpinnerKeyDown(object sender, KeyEventArgs e)
+		{
+			int change = 0;
+			if (e.KeyCode == Keys.Up) {
+				change = + 01 + (e.Shift ? 04 : 0);
+			} else if (e.KeyCode == Keys.Down) {
+				change = - 01 - (e.Shift ? 04 : 0);
+			} else if (e.KeyCode == Keys.PageUp) {
+				change = + 10 + (e.Shift ? 10 : 0);
+			} else if (e.KeyCode == Keys.PageDown) {
+				change = - 10 - (e.Shift ? 10 : 0);
+			}
+			if (change != 0) {
+				SpinnerUi.Value += change;
+			}
+		}
+
+		private void OnSpinnerChange(object sender, EventArgs e)
+		{
+			if (SpinnerChanged != null) {
+				SpinnerChanged.Invoke(this,new SpinnerChangedEventArgs { SpinnerValue = SpinnerValue });
+			}
+		}
+
+		private void OnMultiplierChanged(object sender, ToolStripItemClickedEventArgs e)
+		{
+			string text = e.ClickedItem.Text;
+			if (text == "&1x") { Multiplier = 1; }
+			if (text == "&2x") { Multiplier = 2; }
+			if (text == "&4x") { Multiplier = 4; }
+			if (text == "&8x") { Multiplier = 8; }
+			
+			MultiplierUi.Text = text;
+			if (MultiplierChanged != null) {
+				MultiplierChanged.Invoke(this
+					,new MultiplierChangedEventArgs { Multiplier = Multiplier }
+				);
+			}
+		}
 
 		private void FileOpenAction (object sender, EventArgs e)
 		{
-			OpenFileDialog d = new OpenFileDialog();
-			d.CheckFileExists = true;
-			d.Multiselect = false;
-			d.Title = "Open File";
-			d.Filter = "All files (*.*)|*.*";
-			d.FilterIndex = 0;
-			if (!String.IsNullOrEmpty(FileHandler.Name)) {
-				d.InitialDirectory = Path.GetDirectoryName(FileHandler.Name);
-			}
-			if (DialogResult.OK == d.ShowDialog(_p))
-			{
-				ErrorCode err = FileHandler.Open(d.FileName);
-				if (err != ErrorCode.None) {
-					Error.Show(err,d.FileName);
-				} else {
-					_p.Refresh();
-				}
-			}
+			FireMenuEvent(MenuActionType.FileOpen);
 		}
-
 		private void FileCloseAction (object sender, EventArgs e)
 		{
-			FileHandler.Close();
-			_p.Refresh();
+			FireMenuEvent(MenuActionType.FileClose);
 		}
 		private void FileExitAction (object sender, EventArgs e)
 		{
-			Application.Exit();
-		}
-		private void ToolsToggleToolBoxAction (object sender, EventArgs e)
-		{
-			_tx.Show();
+			FireMenuEvent(MenuActionType.FileExit);
 		}
 		private void HelpAboutAction (object sender, EventArgs e)
 		{
-			
+			FireMenuEvent(MenuActionType.HelpAbout);
+		}
+
+		private void FireMenuEvent(MenuActionType type)
+		{
+			if (MenuAction != null) {
+				MenuAction.Invoke(this,new MenuActionEventArgs {
+					Action = type
+				});
+			}
 		}
 	}
 }
